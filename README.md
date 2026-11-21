@@ -1,6 +1,6 @@
 ![status](https://img.shields.io/badge/CTF-Pwn-success) ![vm](https://img.shields.io/badge/LaanaScript-VM-blue)
 
-# LaanaScript VM — رحلتي الكاملة من أول سطر كود لين طلعت الـ Flag
+# Laana VM — رحلتي الكاملة من أول سطر كود لين طلعت الـ Flag
 
 بسم الله، خلوني اقول لكم وش صار بالضبط، خطوة خطوة، من أول ما فتحت الكود لين ما طلعت الفلاق. ما بفترض إنكم تعرفون أي شيء عن Heap ولا Stack ولا ROP من قبل - كل مفهوم بحاول ابسطه بأبسط صورة اقدر عليها، وبعدها نستخدمه.
 
