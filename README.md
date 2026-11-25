@@ -1,6 +1,6 @@
 ![status](https://img.shields.io/badge/CTF-Pwn-success) ![vm](https://img.shields.io/badge/LaanaScript-VM-blue)
 
-# Laana VM — رحلتي الكاملة من أول سطر كود لين طلعت الـ Flag
+# Laana VM — بشرح لكم حلي لتحدي 
 
 بسم الله الرحمن الرحيم 
 السلام عليكم ورحمة الله وبركاته،
